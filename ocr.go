@@ -23,9 +23,10 @@ const (
 
 // OCRConfig 是调用 OCR 接口所需的配置。
 type OCRConfig struct {
-	BaseURL string
-	APIKey  string
-	Purpose string
+	BaseURL  string
+	APIKey   string
+	Purpose  string
+	DialMode dialMode
 }
 
 // OCRPage 是单页识别结果。
@@ -207,6 +208,7 @@ func doOCROnce(ctx context.Context, cfg OCRConfig, src *uploadSource) (*OCRResul
 		// 不设整体 Timeout，交给 ctx 控制（识别可能持续 180 秒）。
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           newDialFunc(cfg.DialMode),
 			MaxIdleConns:          4,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   15 * time.Second,
@@ -222,7 +224,7 @@ func doOCROnce(ctx context.Context, cfg OCRConfig, src *uploadSource) (*OCRResul
 		if ctx.Err() == context.DeadlineExceeded {
 			return nil, errors.New("请求超时：OCR 总时长上限 180 秒，请换更小的文件")
 		}
-		return nil, fmt.Errorf("请求失败: %w", err)
+		return nil, wrapNetError(err, cfg.DialMode)
 	}
 	defer resp.Body.Close()
 

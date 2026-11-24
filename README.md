@@ -89,6 +89,7 @@ clipocr -latex                            # 保留 LaTeX 原文（默认转纯�
 | `-key-file` | 凭据文件路径，默认 `~/.dsh/.credentials.yaml` |
 | `-timeout` | 整体超时，默认 200s |
 | `-base-url` | API 基地址，默认 `https://api.deepseek.com` |
+| `-net` | 网络协议：`auto`（默认，IPv6 优先、失败回退 IPv4）/ `4` / `6` |
 | `-version` | 显示版本信息 |
 
 ## LaTeX 转纯文本
@@ -145,6 +146,22 @@ refs:
 - 暂时性错误（503、429、超时、服务内部错误）自动重试 3 次；密码保护、格式不支持、超过 1000 页等不重试
 - 响应体前面的换行符是服务端保活用的，属于 JSON 前导空白，直接解析
 - `finish_reason` 为 `length` 的页会在末尾提示「文本不完整」
+
+## 网络问题排查
+
+如果遇到 `EOF`、`TLS handshake timeout` 或连接卡住，多半是代理软件（Clash / Mihomo 等）的 TUN 模式造成的：
+
+- fake-IP 段（`198.18.0.0/15`）会让 IPv4 的 TCP 握手被本地栈直接应答，但 TLS 握手转发不出去而卡死
+- 表现：`curl` 能通（默认优先 IPv6），Go 程序不通（默认优先 IPv4）
+
+程序默认 `-net auto`：**IPv6 优先，失败回退 IPv4**，可绕开这个问题。也可以手动指定：
+
+```bash
+clipocr -net 6    # 强制 IPv6
+clipocr -net 4    # 强制 IPv4
+```
+
+如果 `-net 4` 失败而 `-net 6` 成功，就是上面说的 fake-IP 问题，检查代理规则是否放行 `api.deepseek.com`。
 
 ## 限制（服务端）
 

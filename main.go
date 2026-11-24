@@ -49,12 +49,18 @@ func run() error {
 	keyFile := flag.String("key-file", "", "凭据文件路径（默认 ~/.dsh/.credentials.yaml）")
 	timeout := flag.Duration("timeout", 200*time.Second, "整体超时时间")
 	baseURL := flag.String("base-url", defaultBaseURL, "API 基地址")
+	netMode := flag.String("net", "auto", "网络协议：auto（IPv6 优先，失败回退 IPv4）/ 4 / 6")
 	flag.Usage = usage
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("clipocr %s (commit %s, built %s)\n", version, commit, date)
 		return nil
+	}
+
+	mode, err := parseDialMode(*netMode)
+	if err != nil {
+		return err
 	}
 
 	if *purpose != purposeText && *purpose != purposeLayout {
@@ -167,7 +173,7 @@ func run() error {
 	defer cancel()
 
 	stop := startSpinner(os.Stderr, "上传并识别中")
-	res, err := doOCR(ctx, OCRConfig{BaseURL: *baseURL, APIKey: apiKey, Purpose: *purpose}, src)
+	res, err := doOCR(ctx, OCRConfig{BaseURL: *baseURL, APIKey: apiKey, Purpose: *purpose, DialMode: mode}, src)
 	stop()
 	if err != nil {
 		return err
@@ -225,6 +231,7 @@ func usage() {
   clipocr -q | wc -c                        # 只输出文本，便于管道
   clipocr -no-copy                          # 只看结果，不动剪贴板
   clipocr -latex                            # 保留 LaTeX 原文
+  clipocr -net 6                            # 强制 IPv6（代理 fake-IP 环境）
 `)
 }
 
