@@ -1,0 +1,18 @@
+# 编译产物
+/clipocr
+clipocr.exe
+
+# 测试与临时文件
+*.test
+*.out
+/tmp/
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+*~
+
+# 系统
+.DS_Store
+Thumbs.db
