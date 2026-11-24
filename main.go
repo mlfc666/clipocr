@@ -22,6 +22,13 @@ const (
 	purposeLayout  = "rich_layout_recognition"
 )
 
+// 由 GoReleaser 在构建时通过 -ldflags 注入。
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s %v\n", paint(colorRed+colorBold, "错误:"), err)
@@ -30,6 +37,7 @@ func main() {
 }
 
 func run() error {
+	showVersion := flag.Bool("version", false, "显示版本信息")
 	filePath := flag.String("file", "", "直接识别指定文件（PDF/Word/PPT/图片），默认读取剪贴板图片")
 	purpose := flag.String("purpose", purposeText, "识别用途：text_recognition 或 rich_layout_recognition")
 	savePath := flag.String("save", "", "把剪贴板图片另存到指定路径（默认存到缓存目录）")
@@ -43,6 +51,11 @@ func run() error {
 	baseURL := flag.String("base-url", defaultBaseURL, "API 基地址")
 	flag.Usage = usage
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("clipocr %s (commit %s, built %s)\n", version, commit, date)
+		return nil
+	}
 
 	if *purpose != purposeText && *purpose != purposeLayout {
 		return fmt.Errorf("purpose 只能是 %s 或 %s，收到 %q", purposeText, purposeLayout, *purpose)

@@ -1,0 +1,195 @@
+version: 2
+
+project_name: clipocr
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: clipocr
+    main: .
+    binary: clipocr
+    # 纯 Go 实现，关闭 CGO 才能交叉编译全部架构
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+      - freebsd
+    goarch:
+      - amd64
+      - arm64
+      - "386"
+      - arm
+    goarm:
+      - "6"
+      - "7"
+    ignore:
+      # macOS 没有 32 位，也没有 32 位 ARM
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: arm
+      # Windows 没有 32 位 ARM
+      - goos: windows
+        goarch: arm
+      # FreeBSD 只保留主流架构
+      - goos: freebsd
+        goarch: "386"
+      - goos: freebsd
+        goarch: arm
+
+# 单一 archive 配置，用 .Os 区分平台，避免多配置互相覆盖
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else if eq .Arch "arm64" }}aarch64
+      {{- else if eq .Arch "arm" }}armv{{ .Arm }}
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+# ============================================================
+#  Linux 发行版原生包
+# ============================================================
+nfpms:
+  - id: linux-packages
+    package_name: clipocr
+    vendor: mlfc666
+    homepage: https://github.com/mlfc666/clipocr
+    maintainer: 梦落凡尘 <1323230180@qq.com>
+    description: |-
+      剪贴板图片 OCR 工具：读取剪贴板图片，校验后调用 DeepSeek OCR 识别，
+      结果打印到终端并自动复制。
+    license: MIT
+    formats:
+      # Debian / Ubuntu / Mint / Pop!_OS / Kali / Deepin / UOS / Raspbian
+      - deb
+      # Fedora / RHEL / CentOS / Rocky / AlmaLinux / openSUSE
+      - rpm
+      # Arch / Manjaro / EndeavourOS / Garuda
+      - archlinux
+      # Alpine
+      - apk
+    archlinux:
+      packager: 梦落凡尘 <1323230180@qq.com>
+    deb:
+      compression: xz
+    rpm:
+      compression: lzma
+    contents:
+      - src: ./README.md
+        dst: /usr/share/doc/clipocr/README.md
+      - src: ./LICENSE
+        dst: /usr/share/licenses/clipocr/LICENSE
+    # 剪贴板工具作为推荐依赖，不强制（Wayland 用 wl-clipboard，X11 用 xclip）
+    recommends:
+      - wl-clipboard
+      - xclip
+
+# ============================================================
+#  Release 配置
+# ============================================================
+release:
+  github:
+    owner: mlfc666
+    name: clipocr
+  # 推 tag 时自动创建 Release 并上传全部产物
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## clipocr {{ .Tag }}
+
+    剪贴板图片 OCR 工具：读取剪贴板图片，校验后调用 DeepSeek OCR 识别，结果打印到终端并自动复制。
+
+    ### 安装
+
+    **Linux（推荐用包管理器）**
+    ```bash
+    # Debian / Ubuntu / Mint / Kali / Deepin / UOS
+    sudo dpkg -i clipocr_*_linux_amd64.deb
+
+    # Fedora / RHEL / Rocky / AlmaLinux / openSUSE
+    sudo rpm -i clipocr_*_linux_x86_64.rpm
+
+    # Arch / Manjaro / EndeavourOS
+    sudo pacman -U clipocr_*_linux_x86_64.pkg.tar.zst
+
+    # Alpine
+    sudo apk add --allow-untrusted clipocr_*_linux_amd64.apk
+    ```
+
+    **通用二进制（任意发行版）**
+    ```bash
+    tar -xzf clipocr_*_linux_x86_64.tar.gz
+    sudo install -Dm755 clipocr /usr/local/bin/clipocr
+    ```
+
+    **macOS**
+    ```bash
+    tar -xzf clipocr_*_darwin_arm64.tar.gz   # Apple Silicon
+    tar -xzf clipocr_*_darwin_x86_64.tar.gz  # Intel
+    sudo install -Dm755 clipocr /usr/local/bin/clipocr
+    ```
+
+    **Windows**：解压 `clipocr_*_windows_x86_64.zip`，把 `clipocr.exe` 放进 PATH。
+
+    ### 依赖
+    - Wayland 需要 `wl-clipboard`，X11 需要 `xclip`
+    - API Key 读 `~/.dsh/.credentials.yaml` 的 `refs.DEEPSEEK_API_KEY`，或环境变量 `DEEPSEEK_API_KEY`
+  footer: |
+    ---
+    **完整变更**：https://github.com/mlfc666/clipocr/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+# ============================================================
+#  Checksum
+# ============================================================
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: 新功能
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: 修复
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: 性能
+      regexp: '^perf(\(.+\))?:'
+      order: 2
+    - title: 重构
+      regexp: '^refactor(\(.+\))?:'
+      order: 3
+    - title: 其他
+      order: 999

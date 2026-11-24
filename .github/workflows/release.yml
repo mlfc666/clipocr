@@ -1,0 +1,111 @@
+name: Release
+
+# 推 tag 触发：工作流直接创建 Release 并上传全部二进制
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（如 v1.0.0，需已存在）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================
+  #  1. 先跑测试，测试不过不发布
+  # ============================================================
+  test:
+    name: 测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: 下载依赖
+        run: go mod download
+
+      - name: 检查代码格式
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::以下文件未格式化，请运行 gofmt -w ."
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: 单元测试
+        run: go test -v -race ./...
+
+  # ============================================================
+  #  2. GoReleaser 交叉编译全部平台并上传 Release
+  # ============================================================
+  release:
+    name: 构建并发布
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # GoReleaser 需要完整历史生成 changelog
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: 安装 GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          install-only: true
+
+      - name: 显示版本
+        run: goreleaser --version
+
+      # 先本地构建一遍，确认所有目标都能编译，避免发布到一半失败
+      - name: 构建快照（验证全部架构）
+        run: goreleaser build --snapshot --clean
+
+      - name: 列出构建产物
+        run: |
+          echo "=== 架构覆盖 ==="
+          find dist -type f -executable | sed -E 's|dist/[^/]+_([a-z0-9]+)_([a-z0-9]+).*|\1/\2|' | sort -u | sed 's/^/  /'
+
+      # 推 tag 时 github.ref_name 就是 tag；手动触发时用输入的 tag
+      - name: 发布到 GitHub Release
+        run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+  # ============================================================
+  #  3. 发布后汇总产物清单
+  # ============================================================
+  summary:
+    name: 产物汇总
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: 列出 Release 资产
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          echo "## Release $TAG" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 文件 | 大小 |" >> $GITHUB_STEP_SUMMARY
+          echo "| --- | --- |" >> $GITHUB_STEP_SUMMARY
+          gh release view "$TAG" --repo "${{ github.repository }}" --json assets \
+            --jq '.assets[] | "| \(.name) | \(.size / 1024 | floor) KiB |"' \
+            >> $GITHUB_STEP_SUMMARY

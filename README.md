@@ -4,14 +4,62 @@
 
 ## 安装
 
+### 预编译包（推荐）
+
+从 [Releases](https://github.com/mlfc666/clipocr/releases) 下载对应平台的包。
+
+**Linux**
+
 ```bash
+# Debian / Ubuntu / Mint / Kali / Deepin / UOS / Raspbian
+sudo dpkg -i clipocr_*_linux_amd64.deb
+
+# Fedora / RHEL / CentOS / Rocky / AlmaLinux / openSUSE
+sudo rpm -i clipocr_*_linux_x86_64.rpm
+
+# Arch / Manjaro / EndeavourOS / Garuda
+sudo pacman -U clipocr_*_linux_x86_64.pkg.tar.zst
+
+# Alpine
+sudo apk add --allow-untrusted clipocr_*_linux_amd64.apk
+
+# 任意发行版：通用二进制
+tar -xzf clipocr_*_linux_x86_64.tar.gz
+sudo install -Dm755 clipocr /usr/local/bin/clipocr
+```
+
+**macOS**
+
+```bash
+tar -xzf clipocr_*_darwin_arm64.tar.gz   # Apple Silicon
+tar -xzf clipocr_*_darwin_x86_64.tar.gz  # Intel
+sudo install -Dm755 clipocr /usr/local/bin/clipocr
+```
+
+**Windows**：解压 `clipocr_*_windows_x86_64.zip`，把 `clipocr.exe` 放进 PATH。
+
+### 从源码构建
+
+```bash
+git clone https://github.com/mlfc666/clipocr.git
 cd clipocr
 go build -o clipocr .
-# 可选：装到 PATH
 install -Dm755 clipocr ~/.local/bin/clipocr
 ```
 
-依赖：Go 1.21+；Wayland 需要 `wl-clipboard`（`wl-paste`/`wl-copy`），X11 需要 `xclip`。
+### 依赖
+
+- Wayland 需要 `wl-clipboard`（`wl-paste`/`wl-copy`），X11 需要 `xclip`
+- 二进制为静态链接（`CGO_ENABLED=0`），Alpine 等 musl 发行版可直接运行
+
+## 平台支持
+
+| 系统 | 架构 | 格式 |
+| --- | --- | --- |
+| Linux | x86_64 / aarch64 / i386 / armv6 / armv7 | `deb` `rpm` `pkg.tar.zst` `apk` `tar.gz` |
+| macOS | x86_64 / arm64 | `tar.gz` |
+| Windows | x86_64 / arm64 / i386 | `zip` |
+| FreeBSD | x86_64 / aarch64 | `tar.gz` |
 
 ## 用法
 
@@ -41,6 +89,7 @@ clipocr -latex                            # 保留 LaTeX 原文（默认转纯�
 | `-key-file` | 凭据文件路径，默认 `~/.dsh/.credentials.yaml` |
 | `-timeout` | 整体超时，默认 200s |
 | `-base-url` | API 基地址，默认 `https://api.deepseek.com` |
+| `-version` | 显示版本信息 |
 
 ## LaTeX 转纯文本
 
